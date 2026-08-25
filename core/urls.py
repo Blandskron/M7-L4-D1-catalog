@@ -16,7 +16,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from catalog.views import catalog_snapshot
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/catalog/', catalog_snapshot, name='catalog_snapshot'),
 ]

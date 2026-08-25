@@ -58,17 +58,19 @@ catalog/
 ├── models.py
 ├── views.py
 └── migrations/
-    ├── 0001_initial.py
+├── 0001_initial.py
     ├── 0002_add_description_and_status.py
     ├── 0003_change_price_to_decimal.py
     └── 0004_rename_price_field.py
-````
+```
 
 Solo estos archivos son relevantes para el objetivo del proyecto.
 
 ---
 
 ## Ciclo de evolución del esquema
+
+> Nota didáctica: esta secuencia está pensada para inicializar una base de datos nueva. En un sistema que ya tiene `0001_initial` aplicada y compartida, no se reescriben migraciones publicadas; se crea una migración nueva con `makemigrations`.
 
 ### 1. Estado inicial del modelo
 
@@ -162,6 +164,19 @@ Hace lo siguiente:
 
 No modifica la base de datos.
 
+En este proyecto, después de modificar `catalog/models.py`, el flujo correcto es:
+
+```bash
+python manage.py makemigrations catalog
+python manage.py migrate
+```
+
+Para revisar que el modelo y los archivos de migración siguen sincronizados sin crear archivos:
+
+```bash
+python manage.py makemigrations --check --dry-run
+```
+
 ---
 
 ## Uso de `migrate`
@@ -196,11 +211,72 @@ Django:
 * recrea el estado final del esquema
 * sin necesidad de scripts manuales
 
+También se puede inspeccionar el historial y el SQL previsto antes de aplicarlo:
+
+```bash
+python manage.py showmigrations catalog
+python manage.py sqlmigrate catalog 0004
+```
+
 Esto garantiza:
 
 * reproducibilidad
 * consistencia
 * despliegues confiables
+
+---
+
+## Ejecución con Docker
+
+El proyecto incluye una configuración reproducible con PostgreSQL y Django:
+
+* `Dockerfile`: construye la imagen de la aplicación.
+* `.dockerignore`: excluye secretos, cachés y archivos locales del contexto de construcción.
+* `docker-compose.yml`: inicia los servicios `db` (PostgreSQL) y `web` (Django).
+* `docker-entrypoint.sh`: aplica las migraciones existentes, recopila estáticos y crea un superusuario de forma idempotente.
+
+1. Copia la configuración de ejemplo y cambia, como mínimo, la contraseña y la clave secreta:
+
+```bash
+cp .env.example .env
+```
+
+En PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+2. Inicia el entorno:
+
+```bash
+docker compose up --build
+```
+
+Al arrancar, el contenedor `web` ejecuta `python manage.py migrate --noinput`. Por tanto, aplica tanto las migraciones de Django incluidas como las de `catalog`, en orden, y no necesita scripts SQL manuales.
+
+El administrador se crea solo la primera vez con estas variables del archivo `.env`:
+
+```text
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_EMAIL=admin@example.com
+DJANGO_SUPERUSER_PASSWORD=change-this-password
+```
+
+Si ese usuario ya existe, el script no lo duplica ni modifica su contraseña. Accede a `http://localhost:8000/admin/` y al endpoint de comprobación `http://localhost:8000/api/catalog/`.
+
+Para detener los servicios conservando la base de datos:
+
+```bash
+docker compose down
+```
+
+Para reconstruir la base de datos desde las migraciones (elimina el volumen y sus datos):
+
+```bash
+docker compose down -v
+docker compose up --build
+```
 
 ---
 
